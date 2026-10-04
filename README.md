@@ -1,8 +1,8 @@
 # Identity Security Lab
 
-> A local security engineering laboratory for studying session-bound request protection, token validation, CSRF protection, and authentication security controls using FastAPI.
+> A local security engineering laboratory for studying session-bound request protection, CSRF defense, token lifecycle management, and automated security testing with FastAPI.
 
-![Python](https://img.shields.io/badge/Python-3.11+-blue)
+![Python](https://img.shields.io/badge/Python-3.11%2B-blue)
 ![FastAPI](https://img.shields.io/badge/FastAPI-API%20Framework-009688)
 ![Security](https://img.shields.io/badge/Focus-Web%20Security-red)
 ![Tests](https://img.shields.io/badge/Tests-8%20Passed-brightgreen)
@@ -12,21 +12,21 @@
 
 ## Overview
 
-**Identity Authentication Lab** is a local security engineering project designed to explore how modern web applications can protect authenticated and state-changing requests.
+**Identity Security Lab** is a local security engineering project that demonstrates how a web application can protect authenticated and state-changing requests.
 
-The project implements a custom **session-bound request protection layer** combined with **CSRF protection**, token validation, User-Agent binding, persistence, expiration, revocation, and automated security testing.
+The project implements a custom **session-bound protection layer** combined with **CSRF validation**, User-Agent binding, token expiration, session persistence, revocation, and automated security tests.
 
-The goal is to study the security mechanisms behind protected web requests in a controlled local environment.
+The goal is to study defensive identity and request-protection mechanisms in a controlled environment.
 
 > **Educational / Security Research Project**
 >
-> This project is intended for educational purposes, defensive security research, and authorized testing in environments owned or controlled by the developer. It is not designed to bypass security controls or access third-party systems without authorization.
+> This project is intended for education, defensive security research, and authorized testing in environments owned or controlled by the developer. It is not designed to bypass security controls or access third-party systems without authorization.
 
 ---
 
 ## Security Architecture
 
-The application uses multiple independent security controls instead of relying on a single token.
+The application uses separate controls for general request protection and state-changing request protection.
 
 ```text
                          Client
@@ -45,12 +45,11 @@ The application uses multiple independent security controls instead of relying o
               ▼                         ▼
       Protection Token             CSRF Token
               │                         │
-              │                         │
       ┌───────┴────────┐        ┌───────┴────────┐
       │                │        │                │
       ▼                ▼        ▼                ▼
-   Token Hash      User-Agent  Session       Header
-   Validation       Binding    Binding      Validation
+ Token Hash       User-Agent  Session       Header
+ Validation        Binding    Binding      Validation
       │                │        │                │
       └────────┬───────┘        └────────┬───────┘
                │                         │
@@ -62,8 +61,6 @@ The application uses multiple independent security controls instead of relying o
 ---
 
 ## Request Protection Flow
-
-The protected request lifecycle is designed around a session-bound protection token.
 
 ```text
 Session Initialization
@@ -89,43 +86,27 @@ Protected Request
       Allowed
 ```
 
-For state-changing operations, an additional CSRF validation layer is required:
-
-```text
-Protected Action
-      │
-      ├── Protection Token
-      │
-      └── CSRF Token
-             │
-             ├── Session Binding
-             └── Header Validation
-                    │
-                    ▼
-                 Allowed
-```
+State-changing operations add a separate CSRF validation layer.
 
 ---
 
 ## Protection Token
 
-The application generates a high-entropy protection token during session initialization.
+A high-entropy protection token is generated during session initialization.
 
-The server does **not** need to store the raw protection token. Instead, it stores a SHA-256 hash and validates incoming tokens against the stored hash.
+The server stores a SHA-256 hash of the protection token and validates incoming values using constant-time comparison.
 
-### Protection controls
+### Controls
 
 - Cryptographically secure token generation
 - SHA-256 token hashing
 - Session binding
 - User-Agent binding
-- Expiration
+- Token expiration
 - Session revocation
 - Tamper detection
-- Persistent session storage
-- Constant-time comparison using `secrets.compare_digest`
-
-A modified token is rejected by the protection layer.
+- Persistent local session storage
+- Constant-time comparison with `secrets.compare_digest`
 
 ---
 
@@ -133,47 +114,15 @@ A modified token is rejected by the protection layer.
 
 The protection token is associated with a hash of the User-Agent observed when the session is created.
 
-This provides an additional session-bound validation signal.
+Changing the User-Agent after session creation causes validation to fail.
 
-Example:
-
-```text
-Original Session
-      │
-      ├── Protection Token
-      └── User-Agent A
-             │
-             ▼
-          Request
-             │
-             ▼
-           ALLOWED
-```
-
-Changing the User-Agent:
-
-```text
-Existing Token
-      │
-      └── User-Agent B
-             │
-             ▼
-           403
-```
-
-This behavior is covered by automated tests.
-
-> IP binding is intentionally optional because strict IP binding can cause legitimate session invalidation when clients change networks, use mobile connections, or use privacy-preserving network configurations.
+IP binding is intentionally optional because strict IP binding can invalidate legitimate sessions when clients change networks or use privacy-preserving network configurations.
 
 ---
 
 ## CSRF Protection
 
-State-changing requests use a separate CSRF token.
-
-The project intentionally keeps the CSRF token conceptually separate from the general protection token.
-
-The CSRF mechanism uses:
+State-changing requests require a separate CSRF token. The CSRF mechanism is kept conceptually separate from the general protection token.
 
 ```text
 CSRF Cookie
@@ -181,40 +130,16 @@ CSRF Cookie
 X-CSRF-Token Header
      +
 Session Binding
+     │
+     ▼
+CSRF Validation
 ```
 
-A valid state-changing request therefore requires both layers:
-
-```text
-Protection Token
-        +
-Valid CSRF Token
-        │
-        ▼
-Protected Action
-```
-
-Requests without a CSRF token or with a modified CSRF token are rejected.
+Requests without a CSRF token or with a modified token are rejected.
 
 ---
 
-## Persistent Session Storage
-
-The project uses local JSON-backed persistence for the laboratory environment.
-
-```text
-data/
-├── sessions.json
-└── csrf_tokens.json
-```
-
-The files are intentionally excluded from Git through `.gitignore`.
-
-This allows the application to maintain session-related state across application restarts during local testing without committing generated session data to the repository.
-
----
-
-## Token Lifecycle
+## Session & Token Lifecycle
 
 ```text
               ┌───────────────┐
@@ -222,10 +147,10 @@ This allows the application to maintain session-related state across application
               └───────┬───────┘
                       │
                       ▼
-             Generate Token
+             Generate Tokens
                       │
                       ▼
-              Store Token Hash
+              Store Session State
                       │
                       ▼
               Validate Requests
@@ -246,11 +171,25 @@ This allows the application to maintain session-related state across application
 
 ---
 
+## Persistent Storage
+
+The local laboratory uses JSON-backed persistence for session-related state:
+
+```text
+data/
+├── sessions.json
+└── csrf_tokens.json
+```
+
+Runtime data is excluded from version control through `.gitignore`.
+
+This storage approach is intentionally simple and local; it is not presented as production-grade persistence.
+
+---
+
 ## Automated Security Testing
 
-The project includes automated tests using `pytest`.
-
-Current test coverage validates:
+The project includes a pytest suite covering the main protection controls.
 
 | Security Control | Expected Result |
 |---|---:|
@@ -269,7 +208,7 @@ Current result:
 8 passed
 ```
 
-Run the complete test suite with:
+Run the tests with:
 
 ```bash
 pytest -v
@@ -280,22 +219,14 @@ pytest -v
 ## Project Structure
 
 ```text
-Identity-Authentication-Lab/
+Identity-Security-Lab/
 │
 ├── app/
 │   ├── auth/
 │   │   ├── csrf_protection.py
-│   │   └── token_protection.py
-│   │
-│   ├── api/
-│   ├── static/
-│   ├── templates/
+│   │   └── session_security.py
 │   ├── __init__.py
 │   └── main.py
-│
-├── data/
-│   ├── sessions.json
-│   └── csrf_tokens.json
 │
 ├── tests/
 │   └── test_security.py
@@ -306,43 +237,30 @@ Identity-Authentication-Lab/
 └── README.md
 ```
 
-Generated runtime data inside `data/` is excluded from version control.
+The `data/` directory is generated at runtime and intentionally excluded from Git.
 
 ---
 
 ## Technology Stack
 
-### Backend
-
 - Python
 - FastAPI
 - Uvicorn
-
-### Security
-
-- Session-bound request protection
-- CSRF protection
-- Token hashing
-- User-Agent binding
-- Token expiration
-- Session revocation
-- Secure random token generation
-- Constant-time token comparison
-
-### Testing
-
 - pytest
 - FastAPI TestClient
+- Secure random tokens
+- SHA-256 hashing
+- Session and CSRF controls
 
 ---
 
 ## Installation
 
-Clone the repository and enter the project directory:
+Clone the repository:
 
 ```bash
-git clone https://github.com/dev-nayef/Identity-Authentication-Lab.git
-cd Identity-Authentication-Lab
+git clone https://github.com/dev-nayef/Identity-Security-Lab.git
+cd Identity-Security-Lab
 ```
 
 Install dependencies:
@@ -355,79 +273,42 @@ python -m pip install -r requirements.txt
 
 ## Running the Application
 
-Start the development server:
-
 ```bash
 python -m uvicorn app.main:app --reload
 ```
 
-The application will be available at:
+The application will be available at `http://127.0.0.1:8000`.
 
-```text
-http://127.0.0.1:8000
-```
-
-FastAPI documentation:
-
-```text
-http://127.0.0.1:8000/docs
-```
-
----
-
-## Running Tests
-
-Execute:
-
-```bash
-pytest -v
-```
-
-Expected output:
-
-```text
-8 passed
-```
+FastAPI documentation is available at `http://127.0.0.1:8000/docs`.
 
 ---
 
 ## Security Design Principles
 
-The project follows several defensive security principles:
-
 ### 1. Defense in Depth
-
 Multiple independent controls are used instead of trusting a single credential.
 
 ### 2. Token Separation
-
-The general request-protection token and CSRF token serve different security purposes.
+The general protection token and CSRF token serve different security purposes.
 
 ### 3. Server-Side Validation
-
 Security decisions are made server-side rather than trusting client-controlled values.
 
 ### 4. Minimal Token Exposure
-
-The protection token is stored as a server-side hash rather than as plaintext.
+The protection token is stored server-side as a hash rather than plaintext.
 
 ### 5. Session Binding
-
 Security tokens are associated with a server-side session.
 
 ### 6. Explicit Revocation
-
-Logout removes the server-side session state and invalidates associated protection state.
+Logout removes server-side session state and invalidates associated protection state.
 
 ### 7. Automated Verification
-
 Security assumptions are converted into repeatable automated tests.
 
 ---
 
 ## Security Testing Scenarios
-
-The project has been manually and automatically tested against scenarios including:
 
 ```text
 ✓ Valid session
@@ -448,23 +329,13 @@ The objective is to verify that security controls fail closed when required secu
 
 This project is intentionally designed as a **local security laboratory**.
 
-It focuses on understanding:
-
-- Authentication state
-- Session management
-- Request protection
-- CSRF defenses
-- Token lifecycle management
-- Security validation
-- Automated security testing
+It focuses on authentication state, session management, request protection, CSRF defenses, token lifecycle management, security validation, automated security testing, and defensive web security engineering.
 
 It does not attempt to reproduce or bypass security mechanisms belonging to third-party services.
 
 ---
 
 ## Future Improvements
-
-Planned areas for future development include:
 
 - Stronger structured session storage
 - Configurable token lifetime
@@ -473,9 +344,9 @@ Planned areas for future development include:
 - Security event logging
 - Improved configuration management
 - Production-oriented persistent storage
-- Additional authentication flows
 - Expanded security test coverage
 - CI-based automated testing
+- HTTPS / production cookie configuration
 
 ---
 
@@ -483,23 +354,10 @@ Planned areas for future development include:
 
 **Nayef Ashour**
 
-Identity & Authentication Developer focused on:
-
-```text
-Identity
-Authentication
-CIAM
-OAuth 2.0
-OpenID Connect
-Web Security
-Python Automation
-Security Research
-```
+Identity & Authentication Developer focused on Identity, Authentication, CIAM, Web Security, Python, Backend Engineering, and Security Research.
 
 ---
 
 ## License
 
-This project is intended for educational and authorized security research purposes.
-
-Use the techniques demonstrated here only on systems and environments where you have explicit permission to perform testing.
+This project is intended for educational and authorized security research purposes. Use the techniques demonstrated here only on systems and environments where you have explicit permission to perform testing.
